@@ -4,6 +4,7 @@ from torch.nn import functional as F
 from dataclasses import dataclass
 import inspect
 
+
 @dataclass
 class GPTConfig:
     block_size: int = 1024
@@ -96,8 +97,6 @@ class GPT(nn.Module):
         logits = self.lm_head(x)  # (B, T, vocab_size)
         loss = None
         if targets is not None:
-            import pdb
-            pdb.set_trace()
             loss = F.cross_entropy(
                 logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1
             )

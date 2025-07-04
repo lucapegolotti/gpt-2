@@ -7,6 +7,10 @@ class Config:
         self.warmup_steps = 715
         self.max_steps = 19073
         self.block_size = 1024
+        self.log_step = 250
+        self.model_output_step = 250
+        self.num_return_sequences_sample_training = 4
+        self.max_length_sample_training = 32
         self.data_manager = data_manager
 
         self.check_data_consistency()

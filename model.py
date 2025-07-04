@@ -61,13 +61,15 @@ class GPT(nn.Module):
         ]
         num_decay_params = sum(p.numel() for p in decay_params)
         num_nodecay_params = sum(p.numel() for p in nodecay_params)
-        print(f"number of parameters with weight decay: {num_decay_params:,}")
-        print(f"number of parameters without weight decay: {num_nodecay_params:,}")
+        print(f"[GPT] Number of parameters with weight decay: {num_decay_params:,}")
+        print(
+            f"[GPT] Number of parameters without weight decay: {num_nodecay_params:,}"
+        )
         fused_available = "fused" in inspect.signature(torch.optim.AdamW).parameters
         use_fused = fused_available and "cuda" in device
         # this avoids iterating over the parameters if using GPU and if option is
         # available
-        print(f"using fused AdamW: {use_fused}")
+        print(f"\tUsing fused AdamW: {use_fused}")
         optimizer = torch.optim.AdamW(
             optim_groups, lr=learning_rate, betas=(0.9, 0.95), eps=1e-8, fused=use_fused
         )
@@ -101,6 +103,46 @@ class GPT(nn.Module):
                 logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1
             )
         return logits, loss
+
+    def sample_sequence(
+        self,
+        prompt,
+        data_manger,
+        encoder,
+        num_return_sequences,
+        max_length,
+        top_priority=50,
+    ):
+        self.eval()
+        
+        # encode prompt and reshape it into the desired shape
+        tokens = encoder.encode(prompt)
+        tokens = torch.tensor(tokens, dtype=torch.long)
+        tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1)
+
+        xgen = tokens.to(data_manger.device)
+
+        # create generator to sample from output
+        sample_rng = torch.Generator(device=data_manger.device)
+        sample_rng.manual_seed(42 + data_manger.ddp_rank)
+        while xgen.size(1) < max_length:
+            with torch.no_grad():
+                logits, _ = self.forward(xgen)
+                import pdb
+                pdb.set_trace()
+                # only keep the last prediction
+                logits = logits[:, -1, :]
+                probs = F.softmax(logits, dim=-1)
+                topk_probs, topk_indices = torch.topk(probs, top_priority, dim=-1)
+                ix = torch.multinomial(topk_probs, num_samples=1, generator=sample_rng)
+                xcol = torch.gather(topk_indices, dim=-1, index=ix)
+                xgen = torch.cat((xgen, xcol), dim=1)
+        
+        for i in range(num_return_sequences):
+            tokens = xgen[i, :max_length].tolist()
+            # decode tokens back to vocabulary
+            decoded = encoder.decode(tokens)
+            print(f"rank {data_manger.ddp_rank} sample {i}: {decoded}")
 
     @classmethod
     def from_pretrained(cls, model_type):

@@ -128,8 +128,6 @@ class GPT(nn.Module):
         while xgen.size(1) < max_length:
             with torch.no_grad():
                 logits, _ = self.forward(xgen)
-                import pdb
-                pdb.set_trace()
                 # only keep the last prediction
                 logits = logits[:, -1, :]
                 probs = F.softmax(logits, dim=-1)

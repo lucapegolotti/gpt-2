@@ -1,6 +1,6 @@
 class Config:
     def __init__(self, data_manager):
-        self.batch_size = 16
+        self.batch_size = 4
         self.total_batch_size = 2**19
         self.max_lr = 6e-4
         self.min_lr = self.max_lr * 0.1
@@ -11,6 +11,8 @@ class Config:
         self.model_output_step = 250
         self.num_return_sequences_sample_training = 4
         self.max_length_sample_training = 32
+        self.dataset_name = "tiny_shakespeare"  # "edu_fineweb10B" or "tiny_shakespeare"
+        self.evaluate_benchmark = False
         self.data_manager = data_manager
 
         self.check_data_consistency()

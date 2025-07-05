@@ -26,3 +26,7 @@ class DeviceManager:
             elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 self.device = "mps"
         print("[DeviceManager] using device:", self.device)
+
+    def terminate(self):
+        if self.ddp:
+            destroy_process_group()

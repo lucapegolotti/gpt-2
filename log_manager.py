@@ -4,8 +4,8 @@ import os
 class LogManager:
     def __init__(self, dir="log"):
         os.makedirs(dir, exist_ok=True)
-        log_file = os.path.join(dir, f"log.txt")
-        with open(log_file, "w") as f:
+        self.log_file = os.path.join(dir, f"log.txt")
+        with open(self.log_file, "w") as f:
             pass
 
     def to_file(self, step, label, value):

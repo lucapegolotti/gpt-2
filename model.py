@@ -114,7 +114,7 @@ class GPT(nn.Module):
         top_priority=50,
     ):
         self.eval()
-        
+
         # encode prompt and reshape it into the desired shape
         tokens = encoder.encode(prompt)
         tokens = torch.tensor(tokens, dtype=torch.long)
@@ -135,7 +135,7 @@ class GPT(nn.Module):
                 ix = torch.multinomial(topk_probs, num_samples=1, generator=sample_rng)
                 xcol = torch.gather(topk_indices, dim=-1, index=ix)
                 xgen = torch.cat((xgen, xcol), dim=1)
-        
+
         for i in range(num_return_sequences):
             tokens = xgen[i, :max_length].tolist()
             # decode tokens back to vocabulary

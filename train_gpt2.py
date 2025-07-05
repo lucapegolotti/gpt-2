@@ -3,7 +3,6 @@ import torch.nn as nn
 from torch.nn import functional as F
 import time
 import math
-from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 import os
@@ -12,56 +11,9 @@ from model import GPT, GPTConfig
 from device_manager import DeviceManager
 from config import Config
 from log_manager import LogManager
+from dataloader import DataLoaderLite
 
 import tiktoken
-import numpy as np
-
-
-def load_tokens(filename):
-    npt = np.load(filename)
-    ptt = torch.tensor(npt, dtype=torch.long)
-    return ptt
-
-
-class DataLoaderLite:
-    def __init__(self, B, T, process_rank, num_processes, split):
-        self.B = B
-        self.T = T
-        self.process_rank = process_rank
-        self.num_processes = num_processes
-        assert split in {"train", "val"}
-
-        # get the shard filenames
-        data_root = "edu_fineweb10B"
-        shards = os.listdir(data_root)
-        shards = [s for s in shards if split in s]
-        shards = sorted(shards)
-        shards = [os.path.join(data_root, s) for s in shards]
-        self.shards = shards
-        assert len(shards) > 0, f"no shards found for split {split}"
-        if dm.master_process:
-            print(f"found {len(shards)} shards for split {split}")
-        self.reset()
-
-    def reset(self):
-        # state, init at shard zero
-        self.current_shard = 0
-        self.tokens = load_tokens(self.shards[self.current_shard])
-        self.current_position = self.B * self.T * self.process_rank
-
-    def next_batch(self):
-        B, T = self.B, self.T
-        buf = self.tokens[self.current_position : self.current_position + B * T + 1]
-        x = (buf[:-1]).view(B, T)  # inputs
-        y = (buf[1:]).view(B, T)  # targets
-        # advance the position in the tensor
-        self.current_position += B * T * self.num_processes
-        # if loading the next batch would be out of bounds, advance to next shard
-        if self.current_position + (B * T * self.num_processes + 1) > len(self.tokens):
-            self.current_shard = (self.current_shard + 1) % len(self.shards)
-            self.tokens = load_tokens(self.shards[self.current_shard])
-            self.current_position = B * T * self.process_rank
-        return x, y
 
 
 def get_most_likely_row(tokens, mask, logits):
@@ -133,7 +85,7 @@ def evaluate_benchmark(step, model, data_manager, log_manager):
         log_manager.to_file(step, "benchmark", acc_norm)
 
 
-def evaluate_validation():
+def evaluate_validation(step, model, data_manager, log_manager):
     model.eval()
     val_loader.reset()
     with torch.no_grad():
@@ -143,24 +95,24 @@ def evaluate_validation():
             x, y = val_loader.next_batch()
             x, y = x.to(dm.device), y.to(dm.device)
             with torch.autocast(device_type=dm.device, dtype=torch.bfloat16):
-                logit, loss = model(x, y)
+                _, loss = model(x, y)
             loss /= val_loss_steps
             val_loss_accum += loss.detach()
-    if dm.ddp:
+    if data_manager.ddp:
         dist.all_reduce(val_loss_accum, op=dist.ReduceOp.AVG)
-    if dm.master_process:
+    if data_manager.master_process:
         print(f"validation loss at step {step}: {val_loss_accum.item():.4f}")
-        with open(log_file, "a") as f:
-            f.write(f"{step} val {val_loss_accum.item():.4f}\n")
-        if step > 0 and (step % model_output_step == 0 or last_step):
-            checkpoint_path = os.path.join(log_dir, f"model.pt")
-            checkpoint = {
-                "model": raw_model.state_dict(),
-                "config": raw_model.config,
-                "step": step,
-                "val_loss": val_loss_accum.item(),
-            }
-            torch.save(checkpoint, checkpoint_path)
+        log_manager.to_file(step, "val", val_loss_accum)
+
+
+def save_model(model, log_manager):
+    checkpoint_path = os.path.join(log_manager.dir, f"model.pt")
+    checkpoint = {
+        "model": raw_model.state_dict(),
+        "config": raw_model.config,
+        "step": step,
+    }
+    torch.save(checkpoint, checkpoint_path)
 
 
 if __name__ == "__main__":
@@ -177,19 +129,18 @@ if __name__ == "__main__":
     # without having to load huge batches into memory
     config = Config(data_manager=dm)
 
+    enc = tiktoken.get_encoding("gpt2")
     train_loader = DataLoaderLite(
-        B=config.batch_size,
-        T=config.block_size,
-        process_rank=dm.ddp_rank,
-        num_processes=dm.ddp_world_size,
+        device_manager=dm,
+        config=config,
         split="train",
+        encoder=enc,
     )
     val_loader = DataLoaderLite(
-        B=config.batch_size,
-        T=config.block_size,
-        process_rank=dm.ddp_rank,
-        num_processes=dm.ddp_world_size,
+        device_manager=dm,
+        config=config,
         split="val",
+        encoder=enc,
     )
 
     # we overwrite the vocab size (froom 50257 to 50304) to make the number "nice"
@@ -206,7 +157,6 @@ if __name__ == "__main__":
     optimizer = raw_model.configure_optimizers(
         weight_decay=0.1, learning_rate=3e-4, device=dm.device
     )
-    enc = tiktoken.get_encoding("gpt2")
 
     # object use to print to file metrics (train, validation, benchmark performance)
     lm = LogManager(dir="log")
@@ -226,9 +176,14 @@ if __name__ == "__main__":
                 config.max_length_sample_training,
                 top_priority=50,
             )
-            evaluate_benchmark(step, model, dm, lm)
-            evaluate_validation()
+            if config.evaluate_benchmark:
+                evaluate_benchmark(step, model, dm, lm)
+            evaluate_validation(step, model, dm, lm)
 
+        if step > 0 and (step % config.model_output_step == 0 or last_step):
+            save_model(model, lm)
+
+        model.train()
         optimizer.zero_grad()
         loss_accum = 0.0
         for micro_step in range(config.grad_accum_steps):
@@ -285,5 +240,4 @@ if __name__ == "__main__":
             )
             lm.to_file(step, "train", loss_accum)
 
-    if dm.ddp:
-        destroy_process_group()
+    dm.terminate()

@@ -105,7 +105,7 @@ def evaluate_validation(step, model, data_manager, log_manager):
         log_manager.to_file(step, "val", val_loss_accum)
 
 
-def save_model(model, log_manager):
+def save_model(raw_model, log_manager):
     checkpoint_path = os.path.join(log_manager.dir, f"model.pt")
     checkpoint = {
         "model": raw_model.state_dict(),
@@ -181,7 +181,7 @@ if __name__ == "__main__":
             evaluate_validation(step, model, dm, lm)
 
         if step > 0 and (step % config.model_output_step == 0 or last_step):
-            save_model(model, lm)
+            save_model(raw_model, lm)
 
         model.train()
         optimizer.zero_grad()

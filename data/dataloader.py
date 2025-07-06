@@ -2,7 +2,6 @@ import os
 import numpy as np
 import torch
 
-
 class DataLoaderLite:
     def __init__(self, config, device_manager, encoder, split):
         self.device_manager = device_manager
@@ -30,7 +29,7 @@ class DataLoaderLite:
 
     def initialize_edu_fineweb10B(self):
         # get the shard filenames
-        data_root = "edu_fineweb10B"
+        data_root = "data/edu_fineweb10B"
         shards = os.listdir(data_root)
         shards = [s for s in shards if self.split in s]
         shards = sorted(shards)
@@ -41,7 +40,7 @@ class DataLoaderLite:
             print(f"[DataLoaderLite] Found {len(shards)} shards for split {self.split}")
         self.reset()
 
-    def initialize_tiny_shakespeare(self, encoder, input_file="tiny_shakespeare.txt"):
+    def initialize_tiny_shakespeare(self, encoder, input_file="data/tiny_shakespeare.txt"):
         with open(input_file, "r") as file:
             data = file.read()
         self.tokens = torch.tensor(encoder.encode(data), dtype=torch.long)

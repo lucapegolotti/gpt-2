@@ -1,44 +1,17 @@
 import torch
-import torch.nn as nn
-from torch.nn import functional as F
 import time
 import math
 from torch.nn.parallel import DistributedDataParallel as DDP
-import torch.distributed as dist
 import os
-from hellaswag import render_example, iterate_examples
+from data.hellaswag import evaluate_benchmark
 from model import GPT, GPTConfig
 from device_manager import DeviceManager
 from config import Config
 from log_manager import LogManager
-from dataloader import DataLoaderLite
+from data.dataloader import DataLoaderLite
+import torch.distributed as dist
 
 import tiktoken
-
-
-def get_most_likely_row(tokens, mask, logits):
-    # evaluate the autoregressive loss at all positions
-    shift_logits = (logits[..., :-1, :]).contiguous()
-    shift_tokens = (tokens[..., 1:]).contiguous()
-    flat_shift_logits = shift_logits.view(-1, shift_logits.size(-1))
-    flat_shift_tokens = shift_tokens.view(-1)
-    shift_losses = F.cross_entropy(
-        flat_shift_logits, flat_shift_tokens, reduction="none"
-    )
-    shift_losses = shift_losses.view(tokens.size(0), -1)
-    # now get the average loss just for the completion region (where mask == 1), in each row
-    shift_mask = (
-        mask[..., 1:]
-    ).contiguous()  # we must shift mask, so we start at the last prompt token
-    masked_shift_losses = shift_losses * shift_mask
-    # sum and divide by the number of 1s in the mask
-    sum_loss = masked_shift_losses.sum(dim=1)
-    avg_loss = sum_loss / shift_mask.sum(dim=1)
-    # now we have a loss for each of the 4 completions
-    # the one with the lowest loss should be the most likely
-    pred_norm = avg_loss.argmin().item()
-    return pred_norm
-
 
 def get_lr(it, config):
     if it < config.warmup_steps:
@@ -50,39 +23,6 @@ def get_lr(it, config):
     assert 0 <= decay_ratio <= 1, "decay ratio out of bounds: %f" % decay_ratio
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
     return config.min_lr + coeff * (config.max_lr - config.min_lr)
-
-
-def evaluate_benchmark(step, model, data_manager, log_manager):
-    num_correct_norm = 0
-    num_total = 0
-    for i, example in enumerate(iterate_examples("val")):
-        if i % data_manager.ddp_world_size != data_manager.ddp_rank:
-            continue
-        _, tokens, mask, label = render_example(example)
-        tokens = tokens.to(data_manager.device)
-        mask = mask.to(data_manager.device)
-        with torch.no_grad():
-            with torch.autocast(device_type=data_manager.device, dtype=torch.bfloat16):
-                logits, loss = model(tokens)
-            pred_norm = get_most_likely_row(tokens, mask, logits)
-        num_total += 1
-        num_correct_norm += int(pred_norm == label)
-
-    if data_manager.ddp:
-        num_total = torch.tensor(
-            num_total, dtype=torch.long, device=data_manager.device
-        )
-        num_correct_norm = torch.tensor(
-            num_correct_norm, dtype=torch.long, device=data_manager.device
-        )
-        dist.all_reduce(num_total, op=dist.ReduceOp.SUM)
-        dist.all_reduce(num_correct_norm, op=dist.ReduceOp.SUM)
-        num_total = num_total.item()
-        num_correct_norm = num_correct_norm.item()
-    acc_norm = num_correct_norm / num_total
-    if data_manager.master_process:
-        print(f"HellaSwag accuracy: {num_correct_norm}/{num_total}={acc_norm:.4f}")
-        log_manager.to_file(step, "benchmark", acc_norm)
 
 
 def evaluate_validation(step, model, data_manager, log_manager):
@@ -176,7 +116,7 @@ if __name__ == "__main__":
                 config.max_length_sample_training,
                 top_priority=50,
             )
-            if config.evaluate_benchmark:
+            if config.do_evaluate_benchmark:
                 evaluate_benchmark(step, model, dm, lm)
             evaluate_validation(step, model, dm, lm)
 

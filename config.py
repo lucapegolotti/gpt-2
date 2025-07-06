@@ -12,7 +12,7 @@ class Config:
         self.num_return_sequences_sample_training = 4
         self.max_length_sample_training = 32
         self.dataset_name = "tiny_shakespeare"  # "edu_fineweb10B" or "tiny_shakespeare"
-        self.evaluate_benchmark = False
+        self.do_evaluate_benchmark = True
         self.data_manager = data_manager
 
         self.check_data_consistency()

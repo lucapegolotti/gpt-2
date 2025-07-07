@@ -3,8 +3,8 @@ import argparse
 import os
 import tiktoken
 
-from model import GPT, GPTConfig
-from device_manager import DeviceManager
+from model.model import GPT, GPTConfig
+from manager.device_manager import DeviceManager
 from config import Config
 
 

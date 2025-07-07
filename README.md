@@ -4,7 +4,7 @@ Here's a README for your GPT-2 repository:
 
 This repository provides code for training and evaluating GPT-2 models. It supports training on either the "Tiny Shakespeare" dataset or a sample of the "FineWeb-Edu" dataset. The project also includes functionality for evaluating the trained model on the HellaSwag benchmark.
 
-**Acknowledgement:** This codebase is based on the accompanying materials for the YouTube video "[Let's build GPT: from scratch, in PyTorch](https://www.youtube.com/watch?v=l8pRSuU81PU&t=1787s)" by Andrej Karpathy. The `hellaswag.py` and `fineweb.py` files have been minimally edited from the original code provided in the video's context.
+**Acknowledgement:** This codebase is based on the accompanying materials for the YouTube video "[Let's reproduce GPT-2 (124M)](https://www.youtube.com/watch?v=l8pRSuU81PU&t=1787s)" by Andrej Karpathy. The `hellaswag.py` and `fineweb.py` files have been minimally edited from the original code provided in the video's context.
 
 ## Table of Contents
 

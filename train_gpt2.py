@@ -4,10 +4,10 @@ import math
 from torch.nn.parallel import DistributedDataParallel as DDP
 import os
 from data.hellaswag import evaluate_benchmark
-from model import GPT, GPTConfig
-from device_manager import DeviceManager
+from model.model import GPT, GPTConfig
+from manager.device_manager import DeviceManager
 from config import Config
-from log_manager import LogManager
+from manager.log_manager import LogManager
 from data.dataloader import DataLoaderLite
 import torch.distributed as dist
 

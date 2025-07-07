@@ -64,6 +64,7 @@ hellaswags = {
 
 enc = tiktoken.get_encoding("gpt2")
 
+
 def download(split):
     """Downloads HellaSwag DATA_CACHE_DIR"""
     os.makedirs(DATA_CACHE_DIR, exist_ok=True)
@@ -181,6 +182,7 @@ def evaluate(model_type, device):
                 print(f"{i} (loss: {avg_loss[i].item():.4f}) {end}")
             print(f"predicted: {pred_norm}, actual: {label}")
 
+
 def get_most_likely_row(tokens, mask, logits):
     # evaluate the autoregressive loss at all positions
     shift_logits = (logits[..., :-1, :]).contiguous()
@@ -203,6 +205,7 @@ def get_most_likely_row(tokens, mask, logits):
     # the one with the lowest loss should be the most likely
     pred_norm = avg_loss.argmin().item()
     return pred_norm
+
 
 def evaluate_benchmark(step, model, data_manager, log_manager):
     num_correct_norm = 0
@@ -235,6 +238,7 @@ def evaluate_benchmark(step, model, data_manager, log_manager):
     if data_manager.master_process:
         print(f"HellaSwag accuracy: {num_correct_norm}/{num_total}={acc_norm:.4f}")
         log_manager.to_file(step, "benchmark", acc_norm)
+
 
 if __name__ == "__main__":
     import argparse

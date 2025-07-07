@@ -112,6 +112,7 @@ class GPT(nn.Module):
         num_return_sequences,
         max_length,
         top_priority=50,
+        stream=True,
     ):
         self.eval()
 
@@ -125,22 +126,57 @@ class GPT(nn.Module):
         # create generator to sample from output
         sample_rng = torch.Generator(device=data_manger.device)
         sample_rng.manual_seed(42 + data_manger.ddp_rank)
-        while xgen.size(1) < max_length:
-            with torch.no_grad():
-                logits, _ = self.forward(xgen)
-                # only keep the last prediction
-                logits = logits[:, -1, :]
-                probs = F.softmax(logits, dim=-1)
-                topk_probs, topk_indices = torch.topk(probs, top_priority, dim=-1)
-                ix = torch.multinomial(topk_probs, num_samples=1, generator=sample_rng)
-                xcol = torch.gather(topk_indices, dim=-1, index=ix)
-                xgen = torch.cat((xgen, xcol), dim=1)
+        if stream:
+            for seq_idx in range(num_return_sequences):
+                current_xgen = tokens[seq_idx : seq_idx + 1].to(
+                    data_manger.device
+                )  # Start with one sequence
 
-        for i in range(num_return_sequences):
-            tokens = xgen[i, :max_length].tolist()
-            # decode tokens back to vocabulary
-            decoded = encoder.decode(tokens)
-            print(f"rank {data_manger.ddp_rank} sample {i}: {decoded}")
+                # Decode and print initial prompt
+                initial_decoded_prompt = encoder.decode(current_xgen[0].tolist())
+                print(
+                    initial_decoded_prompt, end="", flush=True
+                )  # Print without newline and flush
+
+                while current_xgen.size(1) < max_length:
+                    with torch.no_grad():
+                        logits, _ = self.forward(current_xgen)
+                        # only keep the last prediction
+                        logits = logits[:, -1, :]
+                        probs = F.softmax(logits, dim=-1)
+                        topk_probs, topk_indices = torch.topk(
+                            probs, top_priority, dim=-1
+                        )
+                        ix = torch.multinomial(
+                            topk_probs, num_samples=1, generator=sample_rng
+                        )
+                        xcol = torch.gather(topk_indices, dim=-1, index=ix)
+                        current_xgen = torch.cat((current_xgen, xcol), dim=1)
+
+                        # Decode and print the newly generated token
+                        new_token = xcol[0].item()  # Get the single new token
+                        decoded_token = encoder.decode([new_token])  # Decode it
+                        print(decoded_token, end="", flush=True)  # Print and flush
+                print("\n")  # Add a newline after each sequence is complete.
+        else:
+            while xgen.size(1) < max_length:
+                with torch.no_grad():
+                    logits, _ = self.forward(xgen)
+                    # only keep the last prediction
+                    logits = logits[:, -1, :]
+                    probs = F.softmax(logits, dim=-1)
+                    topk_probs, topk_indices = torch.topk(probs, top_priority, dim=-1)
+                    ix = torch.multinomial(
+                        topk_probs, num_samples=1, generator=sample_rng
+                    )
+                    xcol = torch.gather(topk_indices, dim=-1, index=ix)
+                    xgen = torch.cat((xgen, xcol), dim=1)
+
+            for i in range(num_return_sequences):
+                tokens = xgen[i, :max_length].tolist()
+                # decode tokens back to vocabulary
+                decoded = encoder.decode(tokens)
+                print(f"rank {data_manger.ddp_rank} sample {i}: {decoded}")
 
     @classmethod
     def from_pretrained(cls, model_type):

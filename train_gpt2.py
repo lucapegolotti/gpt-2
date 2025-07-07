@@ -13,6 +13,7 @@ import torch.distributed as dist
 
 import tiktoken
 
+
 def get_lr(it, config):
     if it < config.warmup_steps:
         return config.max_lr * (it + 1) / config.warmup_steps
@@ -115,6 +116,7 @@ if __name__ == "__main__":
                 config.num_return_sequences_sample_training,
                 config.max_length_sample_training,
                 top_priority=50,
+                stream=False,
             )
             if config.do_evaluate_benchmark:
                 evaluate_benchmark(step, model, dm, lm)

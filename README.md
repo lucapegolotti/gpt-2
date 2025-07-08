@@ -1,5 +1,3 @@
-Here's a README for your GPT-2 repository:
-
 # GPT-2 Training and Evaluation
 
 This repository provides code for training and evaluating GPT-2 models. It supports training on either the "Tiny Shakespeare" dataset or a sample of the "FineWeb-Edu" dataset. The project also includes functionality for evaluating the trained model on the HellaSwag benchmark.

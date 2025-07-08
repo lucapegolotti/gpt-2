@@ -1,60 +1,30 @@
 # GPT-2 Training and Evaluation
 
-This repository provides code for training and evaluating GPT-2 models. It supports training on either the "Tiny Shakespeare" dataset or a sample of the "FineWeb-Edu" dataset. The project also includes functionality for evaluating the trained model on the HellaSwag benchmark.
+This repository provides code for training and evaluating GPT-2 models. It supports training on either the "Tiny Shakespeare" dataset or a sample of the "FineWeb-Edu" dataset. The project also includes functionality for evaluating the trained model on the HellaSwag benchmark. A Medium article related to the project is also available [here](https://medium.com/@pegolotti.luca/lets-reproduce-gpt-2-again-368711e0d1c5).
 
-**Acknowledgement:** This codebase is based on the accompanying materials for the YouTube video "[Let's reproduce GPT-2 (124M)](https://www.youtube.com/watch?v=l8pRSuU81PU&t=1787s)" by Andrej Karpathy. The `hellaswag.py` and `fineweb.py` files have been minimally edited from the original code provided in the video's context.
+**Acknowledgement:** This codebase is heavily based on the accompanying materials for the YouTube video "[Let's reproduce GPT-2 (124M)](https://www.youtube.com/watch?v=l8pRSuU81PU&t=1787s)" by Andrej Karpathy. The `hellaswag.py` and `fineweb.py` files have been minimally edited from the original code provided in the video's context.
 
-## Table of Contents
+<p align="center">
+  <img src="img/gpt-demo.gif" alt="Alt text" />
+</p>
 
-  - [Features](https://www.google.com/search?q=%23features)
-  - [File Structure](https://www.google.com/search?q=%23file-structure)
-  - [Setup](https://www.google.com/search?q=%23setup)
-  - [Data Preparation](https://www.google.com/search?q=%23data-preparation)
-  - [Training](https://www.google.com/search?q=%23training)
-  - [Evaluation](https://www.google.com/search?q=%23evaluation)
-  - [Configuration](https://www.google.com/search?q=%23configuration)
 
-## Features
-
-  * **GPT-2 Model Implementation:** A PyTorch implementation of the GPT-2 architecture, including `CausalSelfAttention` and `MLP` blocks.
-  * **Flexible Data Loading:** Supports loading and tokenizing the "Tiny Shakespeare" dataset and a sample of the "FineWeb-Edu" dataset.
-  * **Distributed Training Support:** Configured to run training across multiple GPUs using PyTorch's DistributedDataParallel (DDP).
-  * **HellaSwag Benchmark Integration:** Includes a utility to download and evaluate the model's performance on the HellaSwag benchmark.
-  * **Configurable Training Parameters:** Easily adjust hyperparameters such as batch size, learning rate, and training steps via `config.py`.
-  * **Logging:** Training and evaluation metrics are logged to a file in the `log` directory.
-
-## File Structure
-
-```
-.
-├── .gitignore
-├── config.py
-├── create_venv.sh
-├── data/
-│   ├── dataloader.py
-│   ├── fineweb.py
-│   ├── hellaswag.py
-│   └── tiny_shakespeare.txt
-├── device_manager.py
-├── log_manager.py
-├── model.py
-├── requirements.txt
-├── run.sh
-└── train_gpt2.py
-```
+## Files
 
   * `config.py`: Defines training hyperparameters and data-related configurations.
   * `create_venv.sh`: Script to set up a Python virtual environment.
+  * `download_model.sh`: Download a pre-trained model to use for evaluation.
   * `data/dataloader.py`: Handles data loading and batching for training.
   * `data/fineweb.py`: Script to download and preprocess the FineWeb-Edu dataset.
   * `data/hellaswag.py`: Contains utilities for downloading and evaluating on the HellaSwag benchmark.
   * `data/tiny_shakespeare.txt`: The Tiny Shakespeare dataset.
-  * `device_manager.py`: Manages CUDA device and DistributedDataParallel (DDP) setup.
-  * `log_manager.py`: Handles logging of training and evaluation metrics.
-  * `model.py`: Defines the GPT-2 model architecture.
+  * `manager/device_manager.py`: Manages CUDA device and DistributedDataParallel (DDP) setup.
+  * `manager/log_manager.py`: Handles logging of training and evaluation metrics.
+  * `model/model.py`: Defines the GPT-2 model architecture.
   * `requirements.txt`: Lists all Python dependencies.
   * `run.sh`: Example script to run distributed training.
   * `train_gpt2.py`: The main script for training the GPT-2 model.
+  * `evaluate.py`: Evaluation script.
 
 ## Setup
 
@@ -112,13 +82,16 @@ During training, the model will periodically log loss, learning rate, and gradie
 
 ## Evaluation
 
-To evaluate a pre-trained GPT-2 model (e.g., `gpt2`, `gpt2-medium`, `gpt2-large`, `gpt2-xl`) on the HellaSwag benchmark:
+The `evaluate.py` script allows generating text from a pre-trained model, either provided as checkpoint file or a string to download the weights from the HuggingFace website. For now, the only supported model from HuggingFace is "gpt2". The following call loads weights from a pretrained model `gpt2-model.pt` and generates a response of 400 tokens:
 
 ```bash
-python data/hellaswag.py --model_type gpt2 --device cuda
+python evaluate.py --model gpt2-model.pt --prompt "I'm a language model, and " --response_length 400 --num_return_sequences 1
 ```
 
-This script will report `acc_norm` and `acc` metrics for the specified model on the HellaSwag validation set.
+A script to download a pretrained model is also available. To execute, run:
+```bash
+bash download_model.sh
+```
 
 ## Configuration
 

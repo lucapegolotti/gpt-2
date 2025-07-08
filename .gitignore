@@ -7,3 +7,5 @@ input.txt
 makefile
 download_backup.sh
 gpt-venv
+*.pt
+.DS_Store
